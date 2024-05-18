@@ -237,7 +237,7 @@ class IntuitiveFuzzy:
         '''
         # self.num_prev += self.num_objs
         # self.num_delta = self.num_objs - self.num_prev
-        self.num_objs = len(self.data[:,0])
+        self.num_objs = len(self.data[0])
         # self.dis_tg = self.dis_tg
 	
     def update_dis(self, dis):

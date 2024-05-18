@@ -176,7 +176,7 @@ def split_data_icr(data):
     return arrs
 
 def main(arr_data):
-    start = time.time()
+    # start = time.time()
     a_sc = [["Data","|C|", "|R_F|", "Acc_O","std_O", "Acc_F", "std_F", "T_F", "Reduct"]]
     n_steps = 2
     B = []
@@ -187,9 +187,10 @@ def main(arr_data):
         DS = preprocessing(arr[0], arr[1])
         print('pass2')
         st = time.time()
-        DS = split_data_icr(DS)
-        print('pass3')
-        IF = IntuitiveFuzzy(DS[0], arr[0])
+        # DS = split_data_icr(DS)
+        # print('pass3')
+        # IF = IntuitiveFuzzy(DS[0], arr[0])
+        IF = IntuitiveFuzzy(DS, arr[0])
         print('pass4')
         F, time_filter = IF.filter()
         print("F", F)
@@ -199,10 +200,10 @@ def main(arr_data):
         a_sc.append(sc)
         print(tabulate(a_sc, headers='firstrow', tablefmt='pipe', stralign='center'))    
 
-    print(time.time() - start)
+        print(time.time() - st)
 
 if __name__ == "__main__":
-    file_path = '/Users/phunghongquan/Documents/NCS-VietAnh/algorithm_custom/data/libras_movement/movement_libras.data'
+    file_path = '../data/libras_movement/movement_libras.data'
     arr_data = [[file_path, None]]  # Ensure this is a list of lists with file paths and optional indices
     main(arr_data)
 
