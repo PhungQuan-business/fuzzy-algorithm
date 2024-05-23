@@ -8,16 +8,16 @@ import warnings, os, time
 from sklearn.model_selection import KFold
 import statistics 
 from operator import itemgetter
-# from utils_fuzzy import Logging
+from utils_fuzzy import Logging 
 from operator import itemgetter
 import pandas as pd
 warnings.filterwarnings("ignore")
-PATH = "C:/AR/data/"
+PATH = "/Users/phunghongquan/Documents/NCS-VietAnh/algorithm_custom/data/"
 LOG_PATH = "logs"
 
 
 arr_data = [
-# ["movement_libras",[90], 0.001] #1 
+["movement_libras",[90], 0.001] #1 
 # ["wall",[24], 0.01] #4#
 # ["ionosphere",[34], 0.01]  #2
 # ["mfeat",[76], 0.01] # 0.1 #10
@@ -121,7 +121,7 @@ arr_data = [
 
 min_max_scaler = preprocessing.MinMaxScaler()
 
-def preprocessing(file_path, att_nominal_cate=None):
+def preprocessing(name_file, att_nominal_cate):
     '''
     Input:
         file_path: path to dataset
@@ -129,31 +129,47 @@ def preprocessing(file_path, att_nominal_cate=None):
 
     Return:
         A dataset with minmaxscalerd attributes and encoded categorical attributes
-    '''
+    ''' 
     
     # Read the dataset
-    data = pd.read_csv(file_path, header=None, delimiter=',')
-    DS = data.to_numpy()
+    # data = pd.read_csv(file_path, header=None, delimiter=',')
+    # DS = data.to_numpy()
     
-    # Get all columns indices
-    all_columns = np.arange(DS.shape[1])
+    # # Get all columns indices
+    # all_columns = np.arange(DS.shape[1])
     
-    if att_nominal_cate is not None:
-        att_nominal_cate = np.array(att_nominal_cate)
-        # Encode nominal categories
-        for i in att_nominal_cate:
-            DS[1:, i] = LabelEncoder().fit_transform(DS[1:, i])
+    # if att_nominal_cate is not None:
+    #     att_nominal_cate = np.array(att_nominal_cate)
+    #     # Encode nominal categories
+    #     for i in att_nominal_cate:
+    #         DS[1:, i] = LabelEncoder().fit_transform(DS[1:, i])
         
-        # Get columns that are not nominal categories
-        att_real = np.setdiff1d(all_columns, att_nominal_cate)
-    else:
-        att_real = all_columns
+    #     # Get columns that are not nominal categories
+    #     att_real = np.setdiff1d(all_columns, att_nominal_cate)
+    # else:
+    #     att_real = all_columns
 
-    # Apply MinMaxScaler to non-nominal columns
-    if len(att_real) > 0:
-        DS[1:, att_real] = min_max_scaler.fit_transform(DS[1:, att_real])
+    # # Apply MinMaxScaler to non-nominal columns
+    # if len(att_real) > 0:
+    #     DS[1:, att_real] = min_max_scaler.fit_transform(DS[1:, att_real])
 
-    return DS
+    # return DS
+    DS  = np.genfromtxt(PATH + name_file + ".csv", delimiter=",", dtype=object)[:, :]
+    att = DS[0].astype(int)
+    att_nominal_cate = np.array(att_nominal_cate)
+    att_real = np.setdiff1d(att, att_nominal_cate)
+
+    DS[0] = att
+    
+    #list_index_cate = [list(DS[0]).index(i) for i in att_nominal_cate]
+    for i in att_nominal_cate:
+        DS[1:, i] = LabelEncoder().fit_transform(DS[1:,i])
+
+    DS[1:,:] = DS[1:,:]
+    #if len(att_real) > 0 :
+        #list_index_real = [list(DS[0]).index(i) for i in att_real]
+    DS[1:,att_real] = min_max_scaler.fit_transform(DS[1:,att_real])
+    return DS[1:]
 
 def split_data(data, number=1):
     if number == 1:
@@ -187,10 +203,10 @@ def main(arr_data):
         DS = preprocessing(arr[0], arr[1])
         print('pass2')
         st = time.time()
-        # DS = split_data_icr(DS)
-        # print('pass3')
-        # IF = IntuitiveFuzzy(DS[0], arr[0])
-        IF = IntuitiveFuzzy(DS, arr[0])
+        DS = split_data_icr(DS)
+        print('pass3')
+        IF = IntuitiveFuzzy(DS[0], arr[0])
+        # IF = IntuitiveFuzzy(DS, arr[0])
         print('pass4')
         F, time_filter = IF.filter()
         print("F", F)
@@ -203,8 +219,13 @@ def main(arr_data):
         print(time.time() - st)
 
 if __name__ == "__main__":
-    file_path = '../data/libras_movement/movement_libras.data'
-    arr_data = [[file_path, None]]  # Ensure this is a list of lists with file paths and optional indices
+    # file_path = '../data/libras_movement/movement_libras.data'
+    # arr_data = [[file_path, None]]  # Ensure this is a list of lists with file paths and optional indices
     main(arr_data)
 
+#TODO Kiểm tra lại kết quả
+'''
+Tước thì kết quả là 41 và nó đúng nhưng bâyh thành 42, 
+có vẻ có vấn đề với chỗ bỏ cột cuối cùng, nhớ check lại sau
+'''
 
