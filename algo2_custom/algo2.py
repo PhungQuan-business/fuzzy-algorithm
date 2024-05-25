@@ -33,7 +33,7 @@ class IntuitiveFuzzy(object):
         '''Calculate partition
         Input:
             matrix: Input matrix 2d-array
-            col_idx(int, 1d-array): index of the column want to drop or retain
+            col_idx(1d-array): array of one or more index of the column want to drop or retain
 
         Parameters:
             drop(boolean): 
@@ -135,7 +135,8 @@ class IntuitiveFuzzy(object):
                 # tính lại FKG_B sau khi index mới được append
                 self.FKG_B = self.cal_FKG(self.dataset_len, self.cal_partition(
                     self.dataset, col_idx=self.B, drop=False))
-                if abs(self.FKG_B - self.stop_cond) <= 0.01:
+                if abs(self.FKG_B - self.stop_cond) != 0:
+                    # if self.FKG_B == self.stop_cond:
                     print(f'done at the first iteration')
                     finish = time.time() - start
                     return self.B, finish
@@ -205,7 +206,42 @@ class IntuitiveFuzzy(object):
         self.relational_matrices = self._get_single_attr_IFRM(self.data)
 
     # TODO yêu cầu user cung cấp dataset cho function, không dùng biến cục bộ class nữa
+    # def evaluate(self, name, dataset, reduct_f, time_f):
+    #     # print("reduct_f", reduct_f)
+    #     # cf = tree.DecisionTreeClassifier()
+    #     # cf= svm.SVC(kernel='rbf', C=1, random_state=42)
+    #     cf = KNeighborsClassifier(n_neighbors=5)
+
+    #     # y_test= self.data[:,-1]
+    #     # y_test = y_test.astype(int)
+    #     y_train = dataset[:, -1]
+    #     y_train = y_train.astype(int)
+
+    #     # X_test_o = self.dataset[:,:-1]
+    #     X_train_o = dataset[:, :-1]
+
+    #     clf_o = cf.fit(X_train_o, y_train)
+    #     # scores_o = round(clf_o.score(X_test_o, y_test),3)
+    #     # clf = KNeighborsClassifier(n_neighbors=10)
+    #     H_o = cross_val_score(clf_o, X_train_o, y_train, cv=10)
+    #     scores_o = round(H_o.mean(), 3)
+    #     std_o = round(np.std(H_o), 3)
+
+    #     # Calculate Filter
+    #     # reduct_f = reduct_f[-1]
+    #     # X_test = self.dataset[:, reduct_f]
+    #     X_train = dataset[:, reduct_f]
+
+    #     clf = cf.fit(X_train, y_train)
+    #     # scores_f = round(clf.score(X_test, y_train),3)
+    #     H_f = cross_val_score(clf, X_train, y_train, cv=10)
+    #     scores_f = round(H_f.mean(), 3)
+    #     std_f = round(np.std(H_f), 3)
+
+    #     return (name, len(self.attributes)-1, len(reduct_f),
+    #             scores_o, std_o, scores_f, std_f, round(time_f, 3), list(self.B))
     def evaluate(self, name, dataset, reduct_f, time_f):
+        file_name = os.path.basename(name)
         # print("reduct_f", reduct_f)
         # cf = tree.DecisionTreeClassifier()
         # cf= svm.SVC(kernel='rbf', C=1, random_state=42)
@@ -216,7 +252,7 @@ class IntuitiveFuzzy(object):
         y_train = dataset[:, -1]
         y_train = y_train.astype(int)
 
-        # X_test_o = self.dataset[:,:-1]
+        # X_test_o = dataset[:,:-1]
         X_train_o = dataset[:, :-1]
 
         clf_o = cf.fit(X_train_o, y_train)
@@ -228,7 +264,7 @@ class IntuitiveFuzzy(object):
 
         # Calculate Filter
         # reduct_f = reduct_f[-1]
-        # X_test = self.dataset[:, reduct_f]
+        # X_test = dataset[:, reduct_f]
         X_train = dataset[:, reduct_f]
 
         clf = cf.fit(X_train, y_train)
@@ -237,5 +273,5 @@ class IntuitiveFuzzy(object):
         scores_f = round(H_f.mean(), 3)
         std_f = round(np.std(H_f), 3)
 
-        return (name, len(self.attributes)-1, len(reduct_f),
+        return (file_name, len(self.attributes)-1, len(reduct_f),
                 scores_o, std_o, scores_f, std_f, round(time_f, 3), list(self.B))

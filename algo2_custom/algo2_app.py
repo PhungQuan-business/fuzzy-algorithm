@@ -142,29 +142,33 @@ def preprocessing(name_file, att_nominal_cate):
     return DS[1:]
 
 
-def algo2_preprocessing(dataset):
-    '''
-    với attr_real thì dùng công thức sau
-    với mỗi cột:
-    -   tính std của cột
-    -   giá trị mới = (giá trị vị trí hiện tại - min cột)/std
-    '''
+def transform_array(arr):
+    # Create a copy of the input array to avoid modifying the original
+    transformed_arr = arr.copy()
 
-    features = dataset[:, :-1]
-    decision_variable = dataset[:, -1].reshape(-1, 1)
-    for col in range(features.shape[1]):
-        column_values = features[:, col]
-        std_dev = np.std(column_values)
-        col_min = np.min(column_values)
-        if std_dev != 0:  # To avoid division by zero
-            features[:, col] = np.floor((column_values - col_min) / std_dev)
-        else:
-            features[:, col] = 0
-    scaled_decision_variable = min_max_scaler.fit_transform(decision_variable)
-    # Combine features and scaled decision variable back into one matrix
-    result_matrix = np.hstack((features, scaled_decision_variable))
+    # Get the number of columns in the array
+    num_cols = arr.shape[1]
 
-    return result_matrix
+    # Perform transformations on all columns except the last column
+    for col in range(num_cols - 1):
+        # Find the standard deviation of the column
+        std_dev = np.std(arr[:, col])
+
+        # Check if standard deviation is not zero
+        if std_dev != 0:
+            # Subtract the minimum value from each element in the column
+            transformed_arr[:, col] -= np.min(arr[:, col])
+
+            # Divide the result by the standard deviation
+            transformed_arr[:, col] /= std_dev
+
+            # Take the floor of the result
+            transformed_arr[:, col] = np.floor(transformed_arr[:, col])
+
+    # Perform MinMaxScaler on the last column
+    transformed_arr[:, -1] = min_max_scaler.fit_transform(arr[:, -1].reshape(-1, 1)).flatten()
+
+    return transformed_arr
 
 
 def split_data(data, number: int = 1):
@@ -209,19 +213,17 @@ def main(arr_data):
         DS = preprocessing(arr[0], arr[1])
         st = time.time()
         DS = split_data_icr(DS)
-
         '''
         lấy 1 phần dữ liệu đã đi qua bước 
         tiền xử lí đầu tiên và 
         đem nó vào bước tiền xử lí tiếp theo
         '''
-        DS_2 = algo2_preprocessing(DS[0])
-
-        # Attr reduction trên dữ liệu đã qua 2 bước tiền xử lí
-        IF = IntuitiveFuzzy(DS_2, 0.000001)  # sửa lại input cho cái này
+        print(f'shape of original dataset:', DS[0].shape)
+        DS_2 = transform_array(DS[0])
+        IF = IntuitiveFuzzy(DS_2, arr[2])  # sửa lại input cho cái này
         F, time_filter = IF.filter()
         print("F", F)
-
+        
         # Evaluate trên dữ liệu chỉ đi qua bước tiền xử lí đầu tiên
         sc = IF.evaluate(arr[0], DS[0], F, time_filter)
         a_sc.append(sc)

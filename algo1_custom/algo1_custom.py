@@ -260,21 +260,21 @@ class IntuitiveFuzzy:
         self.relational_matrices = self._get_single_attr_IFRM(self.data)
         
 
-    def evaluate(self, name, reduct_f, time_f):
+    def evaluate(self, name, dataset, reduct_f, time_f):
         file_name = os.path.basename(name)
 		# print("reduct_f", reduct_f)
 		# cf = tree.DecisionTreeClassifier()
 		# cf= svm.SVC(kernel='rbf', C=1, random_state=42)
         cf = KNeighborsClassifier(n_neighbors=5)
-
+         
 		# y_test= self.data[:,-1]
 		# y_test = y_test.astype(int)
-        y_train = self.data[:,-1]
+        y_train = dataset[:,-1]
         y_train = y_train.astype(int)
 		
 		
-		# X_test_o = self.data[:,:-1]
-        X_train_o = self.data[:,:-1]
+		# X_test_o = dataset[:,:-1]
+        X_train_o = dataset[:,:-1]
 
 
         clf_o = cf.fit(X_train_o, y_train)
@@ -285,11 +285,10 @@ class IntuitiveFuzzy:
         std_o = round(np.std(H_o), 3)
 
 
-
 		# Calculate Filter
 		# reduct_f = reduct_f[-1]
-		# X_test = self.data[:, reduct_f]
-        X_train = self.data[:, reduct_f]
+		# X_test = dataset[:, reduct_f]
+        X_train = dataset[:, reduct_f]
 
         clf = cf.fit(X_train, y_train)
         # scores_f = round(clf.score(X_test, y_train),3)
