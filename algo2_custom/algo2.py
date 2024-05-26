@@ -99,21 +99,36 @@ class IntuitiveFuzzy(object):
         Output:
             index(es) of retain columns
         '''
+        sig_Ci = 0
         while True:
             if not self.B:
                 start = time.time()
                 self.stop_cond = self.cal_FKG(
                     self.dataset_len, self.cal_partition(self.dataset))
                 print(f'this is the stop condition', self.stop_cond)
+
                 temp = {}
                 # Loop over columns except the last one
                 for i in range(self.dataset.shape[1] - 1):
                     FKG_Ci = self.cal_FKG(self.dataset_len, self.cal_partition(
-                        self.dataset, col_idx=[i], drop=True))
-                    sig_Ci = abs(FKG_Ci - self.stop_cond)
+                        self.dataset, col_idx=[i], drop=False))
+                    # sig_Ci = abs(FKG_Ci - self.stop_cond)
+                    sig_Ci = round(FKG_Ci, 3)
                     temp[i] = sig_Ci
-                max_key = max(temp, key=temp.get)
-                self.B.append(max_key)
+                # max_key = max(temp, key=temp.get)
+                
+                #TODO changed from max to min
+                max_key = min(temp, key=temp.get)
+                print(f'all value after first iter', temp.values())
+                print('\n')
+                print('-'* 100)
+                print(f'value of max key is:',temp[max_key])
+                # print(max_key)
+                new_arr = [idx for idx, fkg in temp.items() if fkg ==
+                           temp[max_key]]
+                self.B = new_arr
+                # self.B.append(max_key)
+                print(f'this is self.B after iteration 1, should be more than one', self.B)
             else:
                 start = time.time()
                 self.FKG_B = self.cal_FKG(self.dataset_len, self.cal_partition(
@@ -127,15 +142,29 @@ class IntuitiveFuzzy(object):
                         FKG_B_Ci = self.cal_FKG(self.dataset_len, self.cal_partition(
                             self.dataset, col_idx=self.B+[i], drop=False))
                         sig_Ci = abs(self.FKG_B - FKG_B_Ci)
-                        temp[i] = sig_Ci
+                        temp[i] = round(sig_Ci, 3)
+
                 max_key = max(temp, key=temp.get)
-                self.B.append(max_key)
+                # self.B.append(max_key)
+                '''
+                sau khi có được temp thì:
+                - loop lấy key-value
+                - nếu value = max_value
+                    -   lưu vào mảng tạm thời
+                update self.B
+                
+                
+                '''
+                new_arr = [idx for idx, fkg in temp.items() if fkg ==
+                           temp[max_key]]
+                self.B = self.B + new_arr
                 print('This is self.B:', self.B)
 
                 # tính lại FKG_B sau khi index mới được append
                 self.FKG_B = self.cal_FKG(self.dataset_len, self.cal_partition(
                     self.dataset, col_idx=self.B, drop=False))
-                if abs(self.FKG_B - self.stop_cond) != 0:
+                # if abs(self.FKG_B - self.stop_cond) <= 0.0001 and sig_Ci <= 0.00001:
+                if abs(self.FKG_B - self.stop_cond) <= 0.00001:
                     # if self.FKG_B == self.stop_cond:
                     print(f'done at the first iteration')
                     finish = time.time() - start

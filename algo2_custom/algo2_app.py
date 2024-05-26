@@ -19,10 +19,10 @@ LOG_PATH = "logs"
 
 
 arr_data = [
-    ["movement_libras", [90], 0.001]  # 1
+    # ["movement_libras", [90], 0.001]  # 1
     # ["wall",[24], 0.01] #4#
     # ["ionosphere",[34], 0.01]  #2
-    # ["mfeat",[76], 0.01] # 0.1 #10
+    ["mfeat",[76], 0.01] # 0.1 #10
     # ["Urban",[147], 0.0005] # 9
     # ["waveform2",[40], 0.01] # 3
     # ["hill-valley",[100], 0.001] # 2
