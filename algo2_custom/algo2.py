@@ -1,364 +1,191 @@
-""" Read Page 3 """
-import numpy as np
-import time, os, pickle
-
-from functools import reduce
-from tabulate import tabulate
-from sklearn import svm, tree
-from sklearn.model_selection import cross_val_score
 from sklearn.neighbors import KNeighborsClassifier
+from sklearn.model_selection import cross_val_score
+from sklearn import svm, tree
+from tabulate import tabulate
+from functools import reduce
+import numpy as np
+import time
+import os
+import pickle
+
 
 class IntuitiveFuzzy(object):
+    def __init__(self, dataset, delta, B=None):
+        self.dataset = dataset
+        self.delta = delta
+        self.dataset_len = len(dataset)
+        # self.stop_cond = stop_cond
+        self.FKG_B = None
+        self.delta = delta
+        self.B = B
+        self.attributes = range(0, len(self.dataset[0]))
 
+    def cal_partition(self, matrix, col_idx=None, drop=False):
+        '''Calculate partition
+        Input:
+            matrix: Input matrix 2d-array
+            col_idx(1d-array): array of one or more index of the column want to drop or retain
+        Parameters:
+            drop(boolean): 
+                if False then keep only the column in the col_idx
+                if True then keep all other columns except those in col_idx
+        Output:
+            a list of partition
+        '''
+        start_2 = time.time()
+        if col_idx is not None:
+            if drop:
+                U_reduced = np.delete(matrix, col_idx, axis=1)[:, :-1]
+            else:
+                U_reduced = matrix[:, col_idx]
+        else:
+            U_reduced = matrix[:, :-1]
+        row_dict = {}
+        for index, row in enumerate(U_reduced):
+            row_tuple = tuple(row)
+            if row_tuple in row_dict:
+                row_dict[row_tuple].append(matrix[index, -1])
+            else:
+                row_dict[row_tuple] = [matrix[index, -1]]
+        result = list(row_dict.values())
+        end_2 = time.time() - start_2
+        # print(result)
+        return result
 
-	def __init__(self, data, namefile, att_nominal_cate, delta, alpha, B, num_delta, dis_tg):
-		#super(IntuitiveFuzzy, self).__init__()
-		# self.data_train = data_train
-		self.data = data
-		self.namefile = namefile
-		self.attributes = range(0, len(self.data[0]))
-		self.C = self.attributes[:-1]
-		self.B = B # ???
-		self.dis_tg = dis_tg
-		self.arr_cate = att_nominal_cate
-		self.arr_real = [i for i in self.attributes  if i not in att_nominal_cate]
+    def cal_FKG(self, dataset_len, partition_list):
+        '''Calculate FKG
+        Input:
+            dataset_len: number of sample in the dataset
+            partition_list: a list of partition
+        Output:
+            FKG
+        '''
+        FKG = 1 / (dataset_len)**2 * \
+            np.sum([(len(partition)-1) * sum(partition)
+                    for partition in partition_list])
+        return FKG
 
+    def filter(self):
+        # sig_Ci = 0
+        while True:
+            if self.B is None:
+                start = time.time()
+                self.stop_cond = self.cal_FKG(
+                    self.dataset_len, self.cal_partition(self.dataset))
+                # print(f'this is the stop condition', self.stop_cond)
 
-		### For filtering phase ###
-		self.num_attr = len(self.attributes)
-		self.num_objs = len(self.data[:,0])
-		print("Doi tuong", self.num_objs)
-		# print("num_obj",self.num_objs)
-		self.num_delta = num_delta
-		self.num_prev = self.num_objs - self.num_delta
-		self.num_class = len(set(self.data[:,-1]))
-		self.delta = delta
-		self.alpha = alpha
+                temp = {}
+                # Loop over columns except the last one
+                for i in range(self.dataset.shape[1] - 1):
+                    FKG_Ci = self.cal_FKG(self.dataset_len, self.cal_partition(
+                        self.dataset, col_idx=[i], drop=True))
+                    sig_Ci = abs(FKG_Ci - self.stop_cond)
+                    # sig_Ci = round(sig_Ci, 3)
+                    temp[i] = sig_Ci
+                max_key = max(temp, key=temp.get)
+                print(f'all value after first iter', temp.values())
+                print('\n')
+                print('-' * 100)
+                print(f'value of max key is:', temp[max_key])
+                print(max_key)
+                # new_arr = [idx for idx, fkg in temp.items() if fkg ==
+                #            temp[max_key]]
+                # self.B = new_arr
+                self.B = [max_key]
+                # print(
+                #     f'this is self.B after iteration 1, should be more than one', self.B)
+                while True:
+                    start = time.time()
+                    self.FKG_B = self.cal_FKG(self.dataset_len, self.cal_partition(
+                        self.dataset, col_idx=self.B, drop=False))
+                    if abs(self.FKG_B - self.stop_cond) <= self.delta:
+                        # if self.FKG_B == self.stop_cond:
+                        print(f'done at the first iteration')
+                        finish = time.time() - start
+                        return self.B, finish
+                    temp = {}
+                    # Loop over columns except the last one
+                    # TODO có thể xoá những index đã add vào B khỏi danh sách index
+                    for i in range(self.dataset.shape[1] - 1):
+                        if i not in self.B:
+                            FKG_B_Ci = self.cal_FKG(self.dataset_len, self.cal_partition(
+                                self.dataset, col_idx=self.B+[i], drop=False))
+                            sig_Ci = abs(self.FKG_B - FKG_B_Ci)
+                            # sig_Ci = round(sig_Ci, 3)
+                            temp[i] = sig_Ci
 
-		self.relational_matrices = self._get_single_attr_IFRM(self.data)
-		self.IFRM = None
-		self.dis_IFRM = None
-		self.D = None
+                    max_key = max(temp, key=temp.get)
 
-	def alpha_level(self, IFRM):
-		# alpha = self.alpha
-		beta = (1 - self.alpha) / (1 + self.alpha)
-		# pi = (1.-IFRM[0]- IFRM[1])
-		IFRM[0][IFRM[0] < self.alpha] = 0.
-		IFRM[0][IFRM[1] > beta] = 0.
-		# IFRM[0][pi > self.pi] = 0.
-		IFRM[1][IFRM[0] == 0] = 1.
+                    # new_arr = [idx for idx, fkg in temp.items() if fkg ==
+                    #            temp[max_key]]
+                    # self.B = self.B + new_arr
+                    self.B.append(max_key)
+                    # print('This is self.B:', self.B)
 
-		return IFRM
+                    # tính lại FKG_B sau khi index mới được append
+                    # self.FKG_B = self.cal_FKG(self.dataset_len, self.cal_partition(
+                    #     self.dataset, col_idx=self.B, drop=False))
+                    # if abs(self.FKG_B - self.stop_cond) <= 0.0001 and sig_Ci <= 0.00001:
+            else:
+                start = time.time()
+                self.stop_cond = self.cal_FKG(
+                    self.dataset_len, self.cal_partition(self.dataset))
+                temp = {}
+                self.FKG_B = self.cal_FKG(self.dataset_len, self.cal_partition(
+                    self.dataset, col_idx=self.B, drop=False))
 
+                if abs(self.FKG_B - self.stop_cond) <= self.delta:
+                    finish = time.time() - start
+                    return self.B, finish
+                print(f'this is self.B from third iter should not be empty', self.B)
+                for i in range(self.dataset.shape[1] - 1):
+                    if i not in self.B:
+                        FKG_B_Ci = self.cal_FKG(self.dataset_len, self.cal_partition(
+                            self.dataset, col_idx=self.B+[i], drop=False))
+                        sig_Ci = abs(self.FKG_B - FKG_B_Ci)
+                        # sig_Ci = round(sig_Ci, 3)
+                        temp[i] = sig_Ci
+                max_key = max(temp, key=temp.get)
 
-	def _get_single_attr_IFRM(self, data):
-		"""
-			This function returns a dictionary of relational matrices corresponding to
-			each single attributes
-			Params :
-				- data : The numpy DataFrame of sample data
-			Returns :
-				- result : The dictionary of relational matrices corresponding each attribute
-		"""
-		result = []
-		column_d = data[:,-1]
-		matrix_D = np.zeros((self.num_objs, self.num_objs), dtype=np.float32)
-		matrix_D = 1 - np.abs(np.subtract.outer(column_d, column_d))
+                # new_arr = [idx for idx, fkg in temp.items() if fkg ==
+                #            temp[max_key]]
+                # self.B = self.B + new_arr
+                self.B.append(max_key)
+                print('This is len self.B:', len(list(self.B)))
 
-		list_index_real = [list(self.attributes).index(i) for i in self.arr_real]
-		for k in self.attributes:
-			column = data[:,k]
-			std = np.std(column, ddof = 1)
-			rel_matrix = np.zeros((2, self.num_objs, self.num_objs), np.float32)
+                # tính lại FKG_B sau khi index mới được append
+                # self.FKG_B = self.cal_FKG(self.dataset_len, self.cal_partition(
+                #     self.dataset, col_idx=self.B, drop=False))
+                # if abs(self.FKG_B - self.stop_cond) <= 0.0001 and sig_Ci <= 0.00001:
 
-			if k in list_index_real:
-				rel_matrix[0] = 1 - np.abs(np.subtract.outer(column, column))
-				if std == 0.0: lamda = 1.0
-				else: lamda = (np.sum(np.minimum(rel_matrix[0], matrix_D))/np.sum(matrix_D))/std
-				rel_matrix[1] = ((1.0 - rel_matrix[0]) / (1.0 + lamda * rel_matrix[0]))
-				rel_matrix = self.alpha_level(rel_matrix)
-			else:
-				for i in range(self.num_objs - 1):
-					rel_matrix[0,i, i + 1:] = list(map(lambda x: 1.0 if x == column[i] else 0.0, column[i+1:]))
-					rel_matrix[0,i + 1:, i] = rel_matrix[0,i, i + 1:]
-
-				rel_matrix[0][np.diag_indices(self.num_objs)] = 1.0
-				rel_matrix[1] = 1.0 - rel_matrix[0]
-			rel_matrix = np.array(rel_matrix)
-			result.append(rel_matrix)
-			# result = np.array(result)
-		return result
-
-	def _get_union_IFRM(self, IFRM_1, IFRM_2):
-		"""
-			This function will return the intuitive  relational matrix of P union Q
-			where P and Q are two Intuitionistic Matrix.
-			Note : in the paper R{P union Q} = R{P} intersect R{Q}
-			Params :
-				- IFRM_1 : First Intuitionistic Fuzzy Matrix
-				- IFRM_2 : Second Intuitionistic Fuzzy Matrix
-			Returns :
-				- result : The IFRM of P intersect Q
-		"""
-		# result = np.zeros((2,self.num_objs, self.num_objs),dtype=np.float32)
-		# num_objs = IFRM_1[0].shape[0]
-		shape_1, shape_2 = IFRM_1.shape[1], IFRM_1.shape[2]
-		result = np.zeros((2, shape_1, shape_2), dtype=np.float32)
-
-		result[0] = np.minimum(IFRM_1[0], IFRM_2[0])
-		result[1] = np.maximum(IFRM_1[1], IFRM_2[1])
-
-		return result
-
-	def _get_cardinality(self, IFRM):
-		"""
-			Returns the caridnality of a Intuitionistic Matrix
-			Params :
-				- IFRM : An intuitive fuzzy relational matrix
-			Returns :
-				- caridnality : The caridnality of that parition
-		"""
-		ones = np.ones(IFRM[0].shape,dtype=np.float32)
-		#caridnality = round(np.sum((ones + IFRM[0] - IFRM[1])/2),2)
-		caridnality = np.sum((ones + IFRM[0] - IFRM[1])/2)
-		return caridnality
-
-	def partition_dist_d(self, IFRM): #Tinh tren U + dU
-		"""
-			This function returns the distance partition to d: D(P_B, P_{B U{d}})
-			Params : IFRM is intuitiononstic fuzzy relation matrix
-			Returns :
-				- result : A scalar representing the distance
-		"""
-		IFRM_cardinality = self._get_cardinality(IFRM)
-		IFRM_d = self._get_union_IFRM(IFRM, self.relational_matrices[self.attributes[-1]])
-		IFRM_d_cardinality = self._get_cardinality(IFRM_d)
-		dis = (1 / ((self.num_objs)**2)) * (IFRM_cardinality - IFRM_d_cardinality)
-		return dis
-	
-
-	def incre_distance(self, M):
-		tp1 = (self.num_prev)** 2 * self.dis_tg
-		
-		H = self._get_union_IFRM(M[:, self.num_prev:, :], self.relational_matrices[-1][:, self.num_prev:, :])
-		
-		tp3 = 1/2 * np.sum(- H[0, :, self.num_prev: ] + H[1, :, self.num_prev:] + M[0, self.num_prev:, self.num_prev:] - M[1, self.num_prev:, self.num_prev:])
-
-		tp2 = ( self._get_cardinality( M[:, self.num_prev:, :]) - self._get_cardinality(H) )
-	#     print("tp2 ", tp2)
-		distance = (tp1 + 2 * tp2 - tp3) / ((self.num_objs)**2)
-		# print("ABCD", distance)
-		return distance
-
-	def sig(self, IFRM, a):
-		"""
-			This function measures the significance of an attribute a to the set of
-			attributes B. This function begin use step 2.
-			Params :
-				- IFRM : intuitionistic matrix relation
-				- a : an attribute in C but not in B
-			Returns :
-				- sig : significance value of a to B
-		"""
-		d2 = self.partition_dist_d(self._get_union_IFRM(IFRM,self.relational_matrices[a]))
-		sig = d2
-
-		return sig
-
-	def filter(self):
-		"""
-			The main function for the filter phase
-			Params :
-				- verbose : Show steps or not
-			Returns :
-				- W : A list of potential attributes list
-		"""
-		# initialization
-		# self.B = []
-		matrix_C = reduce(self._get_union_IFRM, [self.relational_matrices[i] for i in self.attributes[:-1]])
-		dis_C = self.partition_dist_d(matrix_C)
-
-
-		# Filter phase
-		start = time.time()
-		# c_m = min(np.setdiff1d(self.C, self.B), key=lambda x: self.partition_dist_d(self.relational_matrices[x]))
-
-		reduce(self._get_union_IFRM,self.relational_matrices[:-1])
-		li = [[cm, self.partition_dist_d(reduce(self._get_union_IFRM,self.relational_matrices[:cm]+self.relational_matrices[cm+1:-1])) - dis_C]
-			for cm in self.C]
-		# print("li",li)
-		pt = max(li, key=lambda x: x[1])		
-
-
-		self.B.append(pt[0])
-		
-		IFRM_TG = self.relational_matrices[pt[0]]
-		d = self.partition_dist_d(IFRM_TG)
-		# print("dis_B", d)
-		# print("dis_C", dis_C)
-		while round(d,3) - round(dis_C, 3) > self.delta :
-			li = [[cm, d - self.partition_dist_d(self._get_union_IFRM(IFRM_TG, self.relational_matrices[cm]))]
-              for cm in np.setdiff1d(self.C, self.B)]
-			# print("li",li)
-			pt = max(li, key=lambda x: x[1])
-			IFRM_TG = self._get_union_IFRM(IFRM_TG, self.relational_matrices[pt[0]])
-			d = d - pt[1]
-			self.B.append(pt[0])
-		# Add reduce one variable step
-		finish = time.time() - start
-		print("dis_B", d)
-		print("dis_C", dis_C)
-		self.dis_tg = d
-		return self.B, self.dis_tg, finish
-	
-	# dist_C_up = incre_distance(dist_C, M_C_up)
-	# dist_B_up = incre_distance(dist_B, M_B_up)
-
-	# Filter stage when adding object set delta_O = {o4, o5}
-	def filter_incre(self):
-		matrix_C = reduce(self._get_union_IFRM, [self.relational_matrices[i] for i in self.attributes[:-1]])
-		matrix_B = reduce(self._get_union_IFRM, [self.relational_matrices[i] for i in self.B])
-
-		dis_C = self.incre_distance(matrix_C)
-		dis_B = self.incre_distance(matrix_B)
-		# if round(dis_B, 4) - round(dis_C, 4) > 0.001: delta = 0.001
-		# else: delta = self.delta
-		print("dis_C", round(dis_C,3))
-		print("dis_B", round(dis_B,3))
-		# dis_prev = np.copy(self.dis_tg)
-		start = time.time()
-		# Filter attributes
-		while round(dis_B - dis_C, 3) > 0.001 :
-			# print("Dis_prev", dis_prev)
-			# Sig = dist_B_up - incre_distance -> Choice max Sig
-			li = [[cm, dis_B - self.incre_distance(self._get_union_IFRM(matrix_B, self.relational_matrices[cm]))] 
-												for cm in np.setdiff1d(self.C, self.B)]
-			pt = max(li, key=lambda x: x[1])
-			
-			# Calculate partition B at next step
-			matrix_B = self._get_union_IFRM(matrix_B, self.relational_matrices[pt[0]])
-			if pt[1] <= 0.001: break
-			dis_B = dis_B - pt[1]
-			self.B.append(pt[0])
-			# if pt[1] <= 0.001: break
-		self.dis_tg = dis_B
-		finish = time.time() - start
-		if len(self.B) <= 1: return self.B, self.dis_tg, finish
-		for c_m in self.B:
-			# remove one variable
-			new_B = np.setdiff1d(self.B, [c_m]).tolist()
-			# recalculate the d(P(B), P(B u {d}))
-			matrix_B = reduce(self._get_union_IFRM, [self.relational_matrices[c_m] for c_m in new_B])
-			dis_remove_cm = self.partition_dist_d(matrix_B)
-			if round(dis_remove_cm - dis_B, 3) <= 0.001 :
-				# if len(self.B) == 1: return self.B, self.dis_tg, finish
-				print("Loai bo c_M ",c_m)
-				self.B = new_B
-		finish = time.time() - start
-		return self.B, self.dis_tg, finish
-
-	def scores(self, reduct):
-		# y_test = self.data[:,-1]
-		# y_test = y_test.astype(int)
-		# print(reduct)
-		# list_index = [self.attributes[:-1].index(i) for i in reduct]
-		# X_test = self.data[:,list_index]
-		# print(list_index)
-
-		y_train = self.data[:,-1]
-		y_train = y_train.astype(int)
-		X_train = self.data[:, reduct]
-
-
-		#X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.4, random_state=0)
-		# clf = tree.DecisionTreeClassifier()
-		# clf = svm.SVC(kernel='rbf', C=1, random_state=42).fit(X_train, y_train)
-		# clf = KNeighborsClassifier(n_neighbors=10).fit(X_train, y_train)
-		# clf = svm.SVC(kernel='rbf', C=1, random_state=42)
-		clf = KNeighborsClassifier(n_neighbors=5)
-		H = cross_val_score(clf, X_train, y_train, cv=10)
-		acc = round(H.mean(), 3)
-		std = round(np.std(H), 3)
-		# scores = round(cross_val_score(clf, X_train, y_train, cv=10).mean(),3)
-		# scores = clf.score(X_test, y_test)
-		#self.arr_acc.append(scores)
-
-		return acc, std
-	
-	def update_dataset(self, data):
-		'''
-			This is a function to update incremental dataset
-			Params:
-				- data: new dataset
-		'''
-		self.data = data
-		# self.prev = num_prev
-
-	def update_n_objs(self):
-		'''
-			This is a function to update a new number of objects
-		'''
-		# self.num_prev += self.num_objs
-		# self.num_delta = self.num_objs - self.num_prev
-		self.num_objs = len(self.data[:,0])
-		# self.dis_tg = self.dis_tg
-	
-	def update_dis(self, dis):
-		self.dis_tg = dis
-
-	def update_n_attribute(self, B):
-		'''
-			This is a function to update a new list of attributes
-			Params:lear
-				- B: list of attribute after wrapper phase of previous step.
-		'''
-		# TODO: save reduct set into self.B
-		# self.dis_tg = dis_tg
-		self.B = B
-
-	def update_retional_matrices(self):
-		'''
-			This is a function to update relational_matrices
-		'''
-		self.relational_matrices = self._get_single_attr_IFRM(self.data)
-		
-
-	def evaluate(self, name, data, reduct_f, time_f):
-		# print("reduct_f", reduct_f)
-		# cf = tree.DecisionTreeClassifier()
-		# cf= svm.SVC(kernel='rbf', C=1, random_state=42)
-		cf = KNeighborsClassifier(n_neighbors=5)
-
-		# y_test= self.data[:,-1]
-		# y_test = y_test.astype(int)
-		y_train = data[:,-1]
-		y_train = y_train.astype(int)
-		
-		
-		# X_test_o = data[:,:-1]
-		X_train_o = data[:,:-1]
-
-
-		clf_o = cf.fit(X_train_o, y_train)
-		# scores_o = round(clf_o.score(X_test_o, y_test),3)
-		#clf = KNeighborsClassifier(n_neighbors=10)
-		H_o = cross_val_score(clf_o, X_train_o, y_train, cv=10)
-		scores_o = round(H_o.mean(),3)
-		std_o = round(np.std(H_o), 3)
-
-
-
-		# Calculate Filter
-		# reduct_f = reduct_f[-1]
-		# X_test = data[:, reduct_f]
-		X_train = data[:, reduct_f]
-
-		clf = cf.fit(X_train, y_train)
-		# scores_f = round(clf.score(X_test, y_train),3)
-		H_f = cross_val_score(clf, X_train, y_train, cv=10)
-		scores_f = round(H_f.mean(),3)
-		std_f = round(np.std(H_f), 3)
-
-		return (name,len(self.attributes)-1, len(reduct_f),
-			 scores_o, std_o, scores_f, std_f, round(time_f,3), list(self.B), self.alpha)
+    def evaluate(self, name, dataset, reduct_f, time_f):
+        file_name = os.path.basename(name)
+        # print("reduct_f", reduct_f)
+        # cf = tree.DecisionTreeClassifier()
+        # cf= svm.SVC(kernel='rbf', C=1, random_state=42)
+        cf = KNeighborsClassifier(n_neighbors=5)
+        # y_test= self.data[:,-1]
+        # y_test = y_test.astype(int)
+        y_train = dataset[:, -1]
+        y_train = y_train.astype(int)
+        # X_test_o = dataset[:,:-1]
+        X_train_o = dataset[:, :-1]
+        clf_o = cf.fit(X_train_o, y_train)
+        # scores_o = round(clf_o.score(X_test_o, y_test),3)
+        # clf = KNeighborsClassifier(n_neighbors=10)
+        H_o = cross_val_score(clf_o, X_train_o, y_train, cv=10)
+        scores_o = round(H_o.mean(), 3)
+        std_o = round(np.std(H_o), 3)
+        # Calculate Filter
+        # reduct_f = reduct_f[-1]
+        # X_test = dataset[:, reduct_f]
+        X_train = dataset[:, reduct_f]
+        clf = cf.fit(X_train, y_train)
+        # scores_f = round(clf.score(X_test, y_train),3)
+        H_f = cross_val_score(clf, X_train, y_train, cv=10)
+        scores_f = round(H_f.mean(), 3)
+        std_f = round(np.std(H_f), 3)
+        return (file_name, len(self.attributes)-1, len(reduct_f),
+                scores_o, std_o, scores_f, std_f, round(time_f, 3), list(self.B))
+        # return (file_name, len(self.attributes)-1, len(reduct_f),
+        #         scores_o, std_o, scores_f, std_f, round(time_f, 3))

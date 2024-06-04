@@ -1,7 +1,7 @@
 import numpy as np
-
+import pandas as pd
 from algo2 import IntuitiveFuzzy
-from sklearn.preprocessing import LabelEncoder
+from sklearn.preprocessing import LabelEncoder, MinMaxScaler
 from sklearn import preprocessing
 from tabulate import tabulate
 import warnings
@@ -17,9 +17,8 @@ warnings.filterwarnings("ignore")
 PATH = "/Users/phunghongquan/Documents/NCS-VietAnh/algorithm_custom/data/"
 LOG_PATH = "logs"
 
-
 arr_data = [
-    ["movement_libras",[90], 0.0] #1 0.334
+    ["movement_libras", [90], 0.000]  # 1 0.334
     # ["wall",[24], 0.01] #4# 0.05 38.948
     # ["ionosphere",[34], 0.01]  #2 0.09
     # ["mfeat",[76], 0.01] # 0.1 #10 56.116
@@ -129,47 +128,37 @@ def preprocessing(name_file, att_nominal_cate):
     att = DS[0].astype(int)
     att_nominal_cate = np.array(att_nominal_cate)
     att_real = np.setdiff1d(att, att_nominal_cate)
-
-    DS[0] = att
-
-    # list_index_cate = [list(DS[0]).index(i) for i in att_nominal_cate]
+    # encode decision variable, except the value in the first row
     for i in att_nominal_cate:
         DS[1:, i] = LabelEncoder().fit_transform(DS[1:, i])
-
-    DS[1:, :] = DS[1:, :]
     # if len(att_real) > 0 :
-    # list_index_real = [list(DS[0]).index(i) for i in att_real]
+        # list_index_real = [list(DS[0]).index(i) for i in att_real]
+    # transformation for every row except the first row
     DS[1:, att_real] = min_max_scaler.fit_transform(DS[1:, att_real])
+    # return all except the first row
     return DS[1:]
 
 
 def transform_array(arr):
     # Create a copy of the input array to avoid modifying the original
     transformed_arr = arr.copy()
-
     # Get the number of columns in the array
     num_cols = arr.shape[1]
-
     # Perform transformations on all columns except the last column
     for col in range(num_cols - 1):
         # Find the standard deviation of the column
         std_dev = np.std(arr[:, col])
-
         # Check if standard deviation is not zero
         if std_dev != 0:
             # Subtract the minimum value from each element in the column
             transformed_arr[:, col] -= np.min(arr[:, col])
-
             # Divide the result by the standard deviation
             transformed_arr[:, col] /= std_dev
-
             # Take the floor of the result
             transformed_arr[:, col] = np.floor(transformed_arr[:, col])
-
     # Perform MinMaxScaler on the last column
     transformed_arr[:, -1] = min_max_scaler.fit_transform(
         arr[:, -1].reshape(-1, 1)).flatten()
-
     return transformed_arr
 
 
@@ -185,11 +174,17 @@ def split_data(data, number: int = 1):
     return arrs
 
 
+'''
+chia thành 5 phần bằng nhau(xác định = number)
+đẩy từng phần vào bảng tĩnh để chạy gia tăng
+'''
+
+
 def split_data_icr(data):
     arrs = []
     arrs_2 = split_data(data, number=2)
     arrs.append(arrs_2[0])
-    arrs_2[1] = split_data(arrs_2[1], number=5)
+    arrs_2[1] = split_data(arrs_2[1], number=5)  # change as prefer
     for arr in arrs_2[1]:
         arrs.append(arr)
     return arrs
@@ -197,72 +192,52 @@ def split_data_icr(data):
 
 def main(arr_data):
     start = time.time()
-    a_sc = [["Data", "|C|", "|R_F|", "Acc_O", "std_O",
-             "Acc_F", "std_F", "T_F", "Reduct", "alpha"]]
+    a_sc = [["Data", "|C|", "|R_F|", "Acc_O",
+             "std_O", "Acc_F", "std_F", "T_F", "Reduct_F"]]
     n_steps = 6
     B = []
     # F = []
     num_prev = 0
-    dis_tg = 0
     X = [0.]
-    # Muc alpha
-    # X = [0,0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1]
-    # HH = []
     for arr in arr_data:
-        for x in X:
-            F = []
-            DS = preprocessing(arr[0], arr[1])
-            st = time.time()
-            DS = split_data_icr(DS)
-            print(f'this is DS',len(DS))
-            DS_2 = transform_array(DS[0])
-            # print(DS)
-            # step 1: Compute IFPDs on original dataset.
-            IF = IntuitiveFuzzy(
-                DS_2, arr[0], arr[1], arr[2], x, F, num_prev, dis_tg)
-            F, dis_tg, time_filter = IF.filter()
-            print("F", F)
-            sc = IF.evaluate(arr[0], DS[0], F, time_filter)
-            a_sc.append(sc)
-            # os.system('cls')
-            print(tabulate(a_sc, headers='firstrow',
-                  tablefmt='pipe', stralign='center'))
-            # os.system('cls')
-            U = DS[0]
-        # H = max(filter(lambda x: x[4], a_sc[1:]), key=itemgetter(1))
-        # H = H.sorted(a_sc[1:], key=lambda x: x[2], reverse=True)
-        H = max(a_sc[1:][::-1], key=lambda x: x[5])
-        # H = max(a[4] for a in a_sc[1:])
-        print(f'this is H', H)
-        F = H[8]
-        # x = H[9]
-        # B = np.copy(F)
+        # for x in X:
+        F = []
+        DS = preprocessing(arr[0], arr[1])
+        st = time.time()
+        DS = split_data_icr(DS)
+        '''
+        lấy 1 phần dữ liệu đã đi qua bước 
+        tiền xử lí đầu tiên và 
+        đem nó vào bước tiền xử lí tiếp theo
+        '''
+        # print(f'shape of original dataset:', DS[0].shape)
+        DS_2 = transform_array(DS[0])
+        IF = IntuitiveFuzzy(DS_2, arr[2])  # sửa lại input cho cái này
+        F, time_filter = IF.filter()
+        # print("F", F)
+
+        # Evaluate trên dữ liệu chỉ đi qua bước tiền xử lí đầu tiên
+        sc = IF.evaluate(arr[0], DS[0], F, time_filter)
+        a_sc.append(sc)
+        # os.system('cls')
+        print(tabulate(a_sc, headers='firstrow',
+              tablefmt='pipe', stralign='center'))
+        U = DS[0]
         for i in range(1, n_steps):
             dU = DS[i]
             U = np.vstack((U, dU))
             U_2 = transform_array(U)
-            num_delta = dU.shape[0]
-            IF.update_dataset(U)
-            IF.update_n_objs()
-            IF.update_retional_matrices()
-            IF.update_dis(dis_tg)
-            IF = IntuitiveFuzzy(
-                U_2, arr[0], arr[1], arr[2], x, F, num_delta, dis_tg)
-            F, dis_tg, time_filter = IF.filter_incre()
-            print("F", F)
-            IF.update_n_attribute(F)
+            # print(f'this is new F', F)
+            IF = IntuitiveFuzzy(U_2, arr[2], F)
+            F, time_filter = IF.filter()
             sc = IF.evaluate(arr[0], U, F, time_filter)
             a_sc.append(sc)
+            # os.system('cls')
             print(tabulate(a_sc, headers='firstrow',
-                  tablefmt='pipe', stralign='center'))
+                           tablefmt='pipe', stralign='center'))
 
     print(time.time()-start)
 
 
 if __name__ == "__main__":
     main(arr_data)
-    # DS  = np.genfromtxt(PATH + arr_data[0][0] + ".csv", delimiter=",", dtype=object, skip_header=1)
-    # # print(att)
-    # min_max_scaler
-    # splitted_dataset = np.array_split(DS, 3)
-    # print(splitted_dataset)
