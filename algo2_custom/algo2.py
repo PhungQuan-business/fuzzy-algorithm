@@ -27,14 +27,14 @@ class IntuitiveFuzzy(object):
             col_idx(1d-array): array of one or more index of the column want to drop or retain
         Parameters:
             drop(boolean): 
-                if False then keep only the column in the col_idx
                 if True then keep all other columns except those in col_idx
+                if False then keep only the column in the col_idx
         Output:
             a list of partition
         '''
         start_2 = time.time()
         if col_idx is not None:
-            if drop:
+            if drop == True:
                 U_reduced = np.delete(matrix, col_idx, axis=1)[:, :-1]
             else:
                 U_reduced = matrix[:, col_idx]
@@ -78,16 +78,16 @@ class IntuitiveFuzzy(object):
                 # Loop over columns except the last one
                 for i in range(self.dataset.shape[1] - 1):
                     FKG_Ci = self.cal_FKG(self.dataset_len, self.cal_partition(
-                        self.dataset, col_idx=[i], drop=True))
+                        self.dataset, col_idx=[i], drop=False))
                     sig_Ci = abs(FKG_Ci - self.stop_cond)
                     # sig_Ci = round(sig_Ci, 3)
                     temp[i] = sig_Ci
                 max_key = max(temp, key=temp.get)
-                print(f'all value after first iter', temp.values())
-                print('\n')
-                print('-' * 100)
-                print(f'value of max key is:', temp[max_key])
-                print(max_key)
+                # print(f'all value after first iter', temp.values())
+                # print('\n')
+                # print('-' * 100)
+                # print(f'value of max key is:', temp[max_key])
+                # print(max_key)
                 # new_arr = [idx for idx, fkg in temp.items() if fkg ==
                 #            temp[max_key]]
                 # self.B = new_arr
@@ -142,6 +142,7 @@ class IntuitiveFuzzy(object):
                     if i not in self.B:
                         FKG_B_Ci = self.cal_FKG(self.dataset_len, self.cal_partition(
                             self.dataset, col_idx=self.B+[i], drop=False))
+                        # print(f'self.B after each addition', self.B)
                         sig_Ci = abs(self.FKG_B - FKG_B_Ci)
                         # sig_Ci = round(sig_Ci, 3)
                         temp[i] = sig_Ci
@@ -157,6 +158,39 @@ class IntuitiveFuzzy(object):
                 # self.FKG_B = self.cal_FKG(self.dataset_len, self.cal_partition(
                 #     self.dataset, col_idx=self.B, drop=False))
                 # if abs(self.FKG_B - self.stop_cond) <= 0.0001 and sig_Ci <= 0.00001:
+
+    def reduce(self):
+        start = time.time()
+        self.stop_cond = self.cal_FKG(
+            self.dataset_len, self.cal_partition(self.dataset))
+        self.FKG_B = self.cal_FKG(self.dataset_len, self.cal_partition(
+            self.dataset, col_idx=self.B, drop=False))
+
+        if abs(self.FKG_B - self.stop_cond) <= self.delta:
+            finish = time.time() - start
+            return self.B, finish
+
+        i = 0
+        # for i in range(len(self.B)):
+        while i < len(self.B) and len(self.B) > 2:
+            # tính FKG_(B-b)
+            # arr_excluding_index = self.B[:i] + self.B[i+1:]
+            B_copy = self.B.copy()
+            # print(f'this is copy of self.B', B_copy)
+            # B_copy.pop(i)
+            # print(f'this is copy of self.B after pop should short 1', B_copy)
+
+            FKG_B_reduce = self.cal_FKG(self.dataset_len, self.cal_partition(
+                self.dataset, col_idx=B_copy, drop=False))
+            # if abs(self.FKG_B - FKG_B_reduce) <= self.delta:
+            if abs(self.FKG_B - FKG_B_reduce) == 0:
+                self.B.pop(i)
+                i = 0
+                continue
+            i += 1
+
+        finish = time.time() - start
+        return self.B, finish
 
     def evaluate(self, name, dataset, reduct_f, time_f):
         file_name = os.path.basename(name)

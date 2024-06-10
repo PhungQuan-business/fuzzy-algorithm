@@ -18,7 +18,7 @@ PATH = "/Users/phunghongquan/Documents/NCS-VietAnh/algorithm_custom/data/"
 LOG_PATH = "logs"
 
 arr_data = [
-    ["movement_libras", [90], 0.000]  # 1 0.334
+    ["movement_libras", [90], 0.0]  # 1 0.334
     # ["wall",[24], 0.01] #4# 0.05 38.948
     # ["ionosphere",[34], 0.01]  #2 0.09
     # ["mfeat",[76], 0.01] # 0.1 #10 56.116
@@ -203,31 +203,30 @@ def main(arr_data):
         # for x in X:
         F = []
         DS = preprocessing(arr[0], arr[1])
+        DS_splitted = split_data_icr(DS)
+        DS_2 = transform_array(DS)
+        # print(f'length of whole dataset', len(DS_2))
         st = time.time()
-        DS = split_data_icr(DS)
-        '''
-        lấy 1 phần dữ liệu đã đi qua bước 
-        tiền xử lí đầu tiên và 
-        đem nó vào bước tiền xử lí tiếp theo
-        '''
         # print(f'shape of original dataset:', DS[0].shape)
-        DS_2 = transform_array(DS[0])
         IF = IntuitiveFuzzy(DS_2, arr[2])  # sửa lại input cho cái này
         F, time_filter = IF.filter()
         # print("F", F)
 
         # Evaluate trên dữ liệu chỉ đi qua bước tiền xử lí đầu tiên
-        sc = IF.evaluate(arr[0], DS[0], F, time_filter)
+        sc = IF.evaluate(arr[0], DS, F, time_filter)
         a_sc.append(sc)
         # os.system('cls')
         print(tabulate(a_sc, headers='firstrow',
               tablefmt='pipe', stralign='center'))
-        U = DS[0]
+        # U = DS[0]
+        exclude_indices = []
         for i in range(1, n_steps):
-            dU = DS[i]
-            U = np.vstack((U, dU))
+            exclude_indices.append(n_steps - i)
+            U = np.vstack([part for j, part in enumerate(
+                DS_splitted) if j not in exclude_indices])
             U_2 = transform_array(U)
-            print(U_2)
+            print(
+                f'len of the dataset after each iteration, should be shorter everytime', len(U_2))
             # print(f'this is new F', F)
             IF = IntuitiveFuzzy(U_2, arr[2], F)
             F, time_filter = IF.reduce()
@@ -236,6 +235,7 @@ def main(arr_data):
             # os.system('cls')
             print(tabulate(a_sc, headers='firstrow',
                            tablefmt='pipe', stralign='center'))
+        print(exclude_indices)
 
     print(time.time()-start)
 
