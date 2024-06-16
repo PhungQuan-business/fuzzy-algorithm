@@ -191,7 +191,6 @@ def split_data_icr(data):
 
 
 def main(arr_data):
-    start = time.time()
     a_sc = [["Data", "|C|", "|R_F|", "Acc_O",
              "std_O", "Acc_F", "std_F", "T_F", "Reduct_F"]]
     n_steps = 6
@@ -200,6 +199,7 @@ def main(arr_data):
     num_prev = 0
     X = [0.]
     for arr in arr_data:
+        first_iter_start = time.time()
         # for x in X:
         F = []
         DS = preprocessing(arr[0], arr[1])
@@ -219,8 +219,12 @@ def main(arr_data):
         print(tabulate(a_sc, headers='firstrow',
               tablefmt='pipe', stralign='center'))
         # U = DS[0]
+        end_of_first_iter = time.time() - first_iter_start
+
         exclude_indices = []
+        other_iter_time = []
         for i in range(1, n_steps):
+            start = time.time()
             exclude_indices.append(n_steps - i)
             U = np.vstack([part for j, part in enumerate(
                 DS_splitted) if j not in exclude_indices])
@@ -233,11 +237,16 @@ def main(arr_data):
             sc = IF.evaluate(arr[0], U, F, time_filter)
             a_sc.append(sc)
             # os.system('cls')
+            finish =  time.time() - start
+            other_iter_time.append(finish)
             print(tabulate(a_sc, headers='firstrow',
                            tablefmt='pipe', stralign='center'))
         print(exclude_indices)
+        print(f'time of the first iter:', end_of_first_iter)
+        print(f'time for other iter',other_iter_time)
+        
 
-    print(time.time()-start)
+    # print(f'this is the finish time for reduce algorithm:',time.time()-start)
 
 
 if __name__ == "__main__":

@@ -237,7 +237,7 @@ def main(arr_data):
             print(tabulate(a_sc, headers='firstrow',
                            tablefmt='pipe', stralign='center'))
 
-    print(time.time()-start)
+    print(f'this is the finish time for incremental algorithm:',time.time()-start)
 
 
 if __name__ == "__main__":
