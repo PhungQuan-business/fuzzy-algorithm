@@ -18,9 +18,9 @@ PATH = "/Users/phunghongquan/Documents/NCS-VietAnh/algorithm_custom/data/"
 LOG_PATH = "logs"
 
 arr_data = [
-    ["movement_libras", [90], 0.0]  # 1 0.334
+    # ["movement_libras", [90], 0.0]  # 1 0.334
     # ["wall",[24], 0.01] #4# 0.05 38.948
-    # ["ionosphere",[34], 0.01]  #2 0.09
+    # ["ionosphere", [34], 0.01]  # 2 0.09
     # ["mfeat",[76], 0.01] # 0.1 #10 56.116
     # ["Urban",[147], 0.01] # 9 4.347
     # ["waveform2",[40], 0.01] # 3
@@ -31,7 +31,7 @@ arr_data = [
     # ["spectf",[44], 0.01] #2
     # ["cmc",[4,5,8,9], 0.01]
     # ["hill-valley",[100], 0.01] #0.05
-    # ["mfeat",[76], 0.01] # 0.1
+    # ["mfeat", [76], 0.01]  # 0.1
     # ["movement_libras",[90], 0.01] #0.6
     # ["waveform2",[40], 0.01] #0.4
     # ["MDL",[500], 0.01] #0.7
@@ -44,7 +44,7 @@ arr_data = [
     # ["volkert", [100], 0.001]
     # ['vowel', [0, 1, 12], 0.001]
     # ["onehun", [64], 0.01]
-    # ["gesture", [32], 0.01]
+    ["gesture", [32], 0.01]
     # ["fri_c2_1000",[50] , 0.01]
     # ["climate", [0,20], 0.01]
     # ["heart",[1,2,5,6,8,10,11,12,13], 0.00]
@@ -162,16 +162,26 @@ def transform_array(arr):
     return transformed_arr
 
 
-def split_data(data, number: int = 1):
+# def split_data(data, number: int = 1):
+#     if number == 1:
+#         return [data]
+#     ldt = len(data)
+#     spt = int(ldt / number)
+#     blk = spt * number
+#     arrs = np.split(data[:blk], number)
+#     if blk != ldt:
+#         arrs[-1] = np.vstack((arrs[-1], data[blk:]))
+#     return arrs
+
+def split_data(data, number: int = 1, start_fold: int = 1):
     if number == 1:
         return [data]
     ldt = len(data)
     spt = int(ldt / number)
     blk = spt * number
-    arrs = np.split(data[:blk], number)
-    if blk != ldt:
-        arrs[-1] = np.vstack((arrs[-1], data[blk:]))
-    return arrs
+    n_indices = number-start_fold+1
+    split_indices = np.arange(ldt, ldt-spt*n_indices, -spt)
+    return split_indices
 
 
 '''
@@ -180,14 +190,14 @@ chia thành 5 phần bằng nhau(xác định = number)
 '''
 
 
-def split_data_icr(data):
-    arrs = []
-    arrs_2 = split_data(data, number=2)
-    arrs.append(arrs_2[0])
-    arrs_2[1] = split_data(arrs_2[1], number=5)  # change as prefer
-    for arr in arrs_2[1]:
-        arrs.append(arr)
-    return arrs
+# def split_data_icr(data):
+#     arrs = []
+#     arrs_2 = split_data(data, number=2)
+#     arrs.append(arrs_2[0])
+#     arrs_2[1] = split_data(arrs_2[1], number=5)  # change as prefer
+#     for arr in arrs_2[1]:
+#         arrs.append(arr)
+#     return arrs
 
 
 def main(arr_data):
@@ -203,8 +213,11 @@ def main(arr_data):
         # for x in X:
         F = []
         DS = preprocessing(arr[0], arr[1])
-        DS_splitted = split_data_icr(DS)
-        DS_2 = transform_array(DS)
+        DS_splitted = split_data(DS, number=10, start_fold=5)
+        print(f'this is the array of split indice', DS_splitted)
+        print(f'this is len of DS[0] should be full:', DS_splitted[0])
+        split_indice = DS_splitted[0]
+        DS_2 = transform_array(DS[:split_indice])
         # print(f'length of whole dataset', len(DS_2))
         st = time.time()
         # print(f'shape of original dataset:', DS[0].shape)
@@ -213,7 +226,7 @@ def main(arr_data):
         # print("F", F)
 
         # Evaluate trên dữ liệu chỉ đi qua bước tiền xử lí đầu tiên
-        sc = IF.evaluate(arr[0], DS, F, time_filter)
+        sc = IF.evaluate(arr[0], DS[:split_indice], F, time_filter)
         a_sc.append(sc)
         # os.system('cls')
         print(tabulate(a_sc, headers='firstrow',
@@ -221,30 +234,31 @@ def main(arr_data):
         # U = DS[0]
         end_of_first_iter = time.time() - first_iter_start
 
-        exclude_indices = []
+        # exclude_indices = []
         other_iter_time = []
         for i in range(1, n_steps):
             start = time.time()
-            exclude_indices.append(n_steps - i)
-            U = np.vstack([part for j, part in enumerate(
-                DS_splitted) if j not in exclude_indices])
-            U_2 = transform_array(U)
+            print("ht", DS_splitted[i])
+            split_indice = DS_splitted[i]
+            # # exclude_indices.append(n_steps - i)
+            # U = np.vstack([part for j, part in enumerate(
+            #     DS_splitted) if j not in exclude_indices])
+            U_2 = transform_array(DS[:split_indice])
             print(
                 f'len of the dataset after each iteration, should be shorter everytime', len(U_2))
             # print(f'this is new F', F)
             IF = IntuitiveFuzzy(U_2, arr[2], F)
             F, time_filter = IF.reduce()
-            sc = IF.evaluate(arr[0], U, F, time_filter)
+            sc = IF.evaluate(arr[0], DS[:split_indice], F, time_filter)
             a_sc.append(sc)
             # os.system('cls')
-            finish =  time.time() - start
+            finish = time.time() - start
             other_iter_time.append(finish)
             print(tabulate(a_sc, headers='firstrow',
                            tablefmt='pipe', stralign='center'))
-        print(exclude_indices)
+        # print(exclude_indices)
         print(f'time of the first iter:', end_of_first_iter)
-        print(f'time for other iter',other_iter_time)
-        
+        print(f'time for other iter', other_iter_time)
 
     # print(f'this is the finish time for reduce algorithm:',time.time()-start)
 
